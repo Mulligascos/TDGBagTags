@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js'
 import { useToast, ToastContainer } from '../hooks/useToast.jsx'
 import './NewChallenge.css'
 
+
 export default function NewChallenge() {
   const navigate = useNavigate()
   const [players, setPlayers] = useState([])
