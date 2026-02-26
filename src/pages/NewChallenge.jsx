@@ -97,7 +97,7 @@ export default function NewChallenge() {
     const lowerTag = Math.min(p1.bag_tag, p2.bag_tag)
     const higherTag = Math.max(p1.bag_tag, p2.bag_tag)
 
-    await supabase.from('challenge_participants').insert([
+    const { error: pErr } = await supabase.from('challenge_participants').insert([
       {
         challenge_id: challengeId,
         player_id: winnerPlayer.player_id,
@@ -113,12 +113,24 @@ export default function NewChallenge() {
         finish_position: 2,
       },
     ])
+    if (pErr) { console.error('Participants insert error:', pErr); throw pErr }
 
-    if (winnerPlayer.bag_tag !== lowerTag) {
-      await supabase.from('players').update({ bag_tag: lowerTag }).eq('player_id', winnerPlayer.player_id)
-    }
-    if (loserPlayer.bag_tag !== higherTag) {
-      await supabase.from('players').update({ bag_tag: higherTag }).eq('player_id', loserPlayer.player_id)
+    // Tags are swapping — use a temp placeholder to avoid unique constraint conflicts
+    const tagsAreSwapping = winnerPlayer.bag_tag !== lowerTag || loserPlayer.bag_tag !== higherTag
+    if (tagsAreSwapping) {
+      const TEMP_TAG = 999999
+
+      // Step 1: Move winner to temp tag to free up their current slot
+      const { error: e1 } = await supabase.from('players').update({ bag_tag: TEMP_TAG }).eq('player_id', winnerPlayer.player_id)
+      if (e1) { console.error('Temp tag error:', e1); throw e1 }
+
+      // Step 2: Move loser to the higher tag (winner's old slot is now free or loser keeps theirs)
+      const { error: e2 } = await supabase.from('players').update({ bag_tag: higherTag }).eq('player_id', loserPlayer.player_id)
+      if (e2) { console.error('Loser tag error:', e2); throw e2 }
+
+      // Step 3: Move winner from temp to the lower tag
+      const { error: e3 } = await supabase.from('players').update({ bag_tag: lowerTag }).eq('player_id', winnerPlayer.player_id)
+      if (e3) { console.error('Winner tag error:', e3); throw e3 }
     }
   }
 
@@ -132,7 +144,7 @@ export default function NewChallenge() {
       .filter(t => t != null)
       .sort((a, b) => a - b)
 
-    await supabase.from('challenge_participants').insert(
+    const { error: pErr } = await supabase.from('challenge_participants').insert(
       sorted.map((p, idx) => {
         const playerData = getPlayer(p.player_id)
         return {
@@ -144,12 +156,25 @@ export default function NewChallenge() {
         }
       })
     )
+    if (pErr) { console.error('Group participants insert error:', pErr); throw pErr }
 
+    // Step 1: Move all participants to temp tags to clear all slots
+    const TEMP_BASE = 999000
     for (let i = 0; i < sorted.length; i++) {
-      const playerData = getPlayer(sorted[i].player_id)
+      const { error: tErr } = await supabase.from('players')
+        .update({ bag_tag: TEMP_BASE + i })
+        .eq('player_id', sorted[i].player_id)
+      if (tErr) { console.error('Group temp tag error:', tErr); throw tErr }
+    }
+
+    // Step 2: Assign final tags in order (all slots are now free)
+    for (let i = 0; i < sorted.length; i++) {
       const newTag = availableTags[i]
-      if (newTag != null && playerData.bag_tag !== newTag) {
-        await supabase.from('players').update({ bag_tag: newTag }).eq('player_id', playerData.player_id)
+      if (newTag != null) {
+        const { error: uErr } = await supabase.from('players')
+          .update({ bag_tag: newTag })
+          .eq('player_id', sorted[i].player_id)
+        if (uErr) { console.error('Group final tag error:', uErr); throw uErr }
       }
     }
   }
