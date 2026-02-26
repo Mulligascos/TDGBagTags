@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
-import { useToast, ToastContainer } from '../hooks/useToast.js'
+import { useToast, ToastContainer } from '../hooks/useToast.jsx'
 import './Players.css'
 
 const DIVISIONS = ['Mixed', 'Female', 'Junior', 'Senior']
