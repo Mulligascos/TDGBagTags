@@ -18,7 +18,7 @@ export default function NewChallenge() {
   const [challengeDate, setChallengeDate] = useState(new Date().toISOString().slice(0, 16))
   const [notes, setNotes] = useState('')
 
-  const [challenger, setChallenger] = useState('')
+  const [challenger, setChallenger] = useState(() => currentPlayer?.player_id || '')
   const [challenged, setChallenged] = useState('')
   const [winner, setWinner] = useState('')
 
@@ -26,12 +26,13 @@ export default function NewChallenge() {
 
   useEffect(() => { fetchPlayers() }, [])
 
-  // Pre-fill challenger once both players list and currentPlayer are ready
+  // Re-apply if currentPlayer changes after mount (e.g. user picks identity while on this page)
   useEffect(() => {
-    if (currentPlayer && players.length > 0) {
+    if (currentPlayer?.player_id) {
       setChallenger(currentPlayer.player_id)
+      setWinner('')
     }
-  }, [currentPlayer, players])
+  }, [currentPlayer?.player_id])
 
   async function fetchPlayers() {
     const { data } = await supabase.from('players').select('*')
