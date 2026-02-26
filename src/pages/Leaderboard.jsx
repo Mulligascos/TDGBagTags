@@ -15,27 +15,36 @@ export default function Leaderboard() {
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
   const [division, setDivision] = useState('All')
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     fetchPlayers()
   }, [])
 
-  async function fetchPlayers() {
-    setLoading(true)
+  async function fetchPlayers(isRefresh = false) {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
+
     const { data, error } = await supabase
       .from('players')
       .select('*')
       .eq('player_status', 'Active')
       .order('bag_tag', { ascending: true })
-    if (!error) setPlayers(data || [])
+
+    if (!error) {
+      setPlayers(data || [])
+      setLastUpdated(new Date())
+    }
+
     setLoading(false)
+    setRefreshing(false)
   }
 
   const filtered = division === 'All'
     ? players
     : players.filter(p => p.player_division === division)
 
-  // Group by division for "All" view
   const byDivision = division === 'All'
     ? DIVISIONS.filter(d => d !== 'All').reduce((acc, div) => {
         const divPlayers = players.filter(p => p.player_division === div)
@@ -44,11 +53,29 @@ export default function Leaderboard() {
       }, {})
     : null
 
+  const timeStr = lastUpdated
+    ? lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : null
+
   return (
     <div className="leaderboard">
-      <div className="page-header">
-        <h1 className="page-title">LEADERBOARD</h1>
-        <p className="page-subtitle">Tag #1 is the top — challenge to climb the ranks</p>
+      <div className="page-header lb-header">
+        <div>
+          <h1 className="page-title">LEADERBOARD</h1>
+          <p className="page-subtitle">Tag #1 is the top — challenge to climb the ranks</p>
+        </div>
+        <div className="refresh-area">
+          {timeStr && <span className="last-updated">Updated {timeStr}</span>}
+          <button
+            className={`btn btn-secondary refresh-btn ${refreshing ? 'spinning' : ''}`}
+            onClick={() => fetchPlayers(true)}
+            disabled={refreshing}
+            title="Refresh leaderboard"
+          >
+            <span className="refresh-icon">↻</span>
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       <div className="filter-bar">
