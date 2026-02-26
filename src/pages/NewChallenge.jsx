@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
-import { useToast, ToastContainer } from '../hooks/useToast.js'
+import { useToast, ToastContainer } from '../hooks/useToast.jsx'
 import './NewChallenge.css'
 
 const DIVISIONS = ['Mixed', 'Female', 'Junior', 'Senior']
