@@ -26,14 +26,17 @@ export default function NewChallenge() {
 
   useEffect(() => { fetchPlayers() }, [])
 
+  // Pre-fill challenger once both players list and currentPlayer are ready
+  useEffect(() => {
+    if (currentPlayer && players.length > 0) {
+      setChallenger(currentPlayer.player_id)
+    }
+  }, [currentPlayer, players])
+
   async function fetchPlayers() {
     const { data } = await supabase.from('players').select('*')
       .eq('player_status', 'Active').order('bag_tag', { ascending: true, nullsLast: true })
     setPlayers(data || [])
-    // Pre-fill challenger with current user once players are loaded
-    if (currentPlayer) {
-      setChallenger(currentPlayer.player_id)
-    }
     setLoading(false)
   }
 
