@@ -1,7 +1,5 @@
 # 🥏 Bag Tag Rankings
 
-A full-stack disc golf bag tag ranking tracker built with **React + Vite** (frontend) and **Supabase** (backend), deployable to **Vercel**.
-
 ## Features
 
 - **Leaderboard** — Per-division rankings (Mixed, Female, Junior, Senior) with #1 tag as the goal
