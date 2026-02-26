@@ -409,3 +409,115 @@ tbody td {
   .main { padding: 20px 16px; }
   .page-title { font-size: 32px; }
 }
+
+/* ===== HEADER RIGHT ===== */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.player-identity {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  color: var(--text);
+  font-size: 13px;
+  max-width: 200px;
+}
+
+.player-identity:hover {
+  border-color: var(--accent);
+  background: rgba(232, 255, 71, 0.05);
+}
+
+.identity-tag {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.identity-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.identity-edit {
+  color: var(--text-dim);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.identity-avatar {
+  font-size: 16px;
+}
+
+.identity-prompt {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ===== PLAYER PICKER ===== */
+.player-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+}
+
+.player-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+  color: var(--text);
+  font-size: 14px;
+  width: 100%;
+}
+
+.player-picker-row:hover {
+  border-color: var(--text-dim);
+  background: var(--border);
+}
+
+.player-picker-row.selected {
+  border-color: var(--accent);
+  background: rgba(232, 255, 71, 0.07);
+}
+
+.picker-tag {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 13px;
+  min-width: 36px;
+}
+
+.picker-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.picker-check {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+}
