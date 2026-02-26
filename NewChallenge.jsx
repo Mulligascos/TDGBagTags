@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
-import { useToast, ToastContainer } from '../hooks/useToast.js'
+import { useToast, ToastContainer } from '../hooks/useToast.jsx'
+import { useCurrentUser } from '../App.jsx'
 import './NewChallenge.css'
-
-const DIVISIONS = ['Mixed', 'Female', 'Junior', 'Senior']
 
 export default function NewChallenge() {
   const navigate = useNavigate()
@@ -13,18 +12,16 @@ export default function NewChallenge() {
   const [saving, setSaving] = useState(false)
   const { toasts, addToast } = useToast()
 
-  // Challenge config
+  const { currentPlayer } = useCurrentUser()
+
   const [challengeType, setChallengeType] = useState('Direct')
-  const [division, setDivision] = useState('Mixed')
   const [challengeDate, setChallengeDate] = useState(new Date().toISOString().slice(0, 16))
   const [notes, setNotes] = useState('')
 
-  // Direct challenge
   const [challenger, setChallenger] = useState('')
   const [challenged, setChallenged] = useState('')
   const [winner, setWinner] = useState('')
 
-  // Group challenge: array of {player_id, finish_position}
   const [groupParticipants, setGroupParticipants] = useState([{ player_id: '', finish_position: 1 }])
 
   useEffect(() => { fetchPlayers() }, [])
@@ -33,10 +30,12 @@ export default function NewChallenge() {
     const { data } = await supabase.from('players').select('*')
       .eq('player_status', 'Active').order('bag_tag', { ascending: true, nullsLast: true })
     setPlayers(data || [])
+    // Pre-fill challenger with current user once players are loaded
+    if (currentPlayer) {
+      setChallenger(currentPlayer.player_id)
+    }
     setLoading(false)
   }
-
-  const divisionPlayers = players.filter(p => p.player_division === division)
 
   function getPlayer(id) { return players.find(p => p.player_id === id) }
 
@@ -61,7 +60,6 @@ export default function NewChallenge() {
   }
 
   async function handleSubmit() {
-    // Validate
     if (challengeType === 'Direct') {
       if (!challenger || !challenged) return addToast('Select both players', 'error')
       if (challenger === challenged) return addToast('Players must be different', 'error')
@@ -75,11 +73,10 @@ export default function NewChallenge() {
 
     setSaving(true)
     try {
-      // 1. Create challenge record
       const { data: challenge, error: cErr } = await supabase.from('challenges').insert({
         challenge_type: challengeType,
         challenge_date: challengeDate,
-        division,
+        division: 'Mixed',
         notes: notes.trim() || null,
       }).select().single()
       if (cErr) throw cErr
@@ -99,61 +96,62 @@ export default function NewChallenge() {
   }
 
   async function handleDirectChallenge(challengeId) {
-    const p1 = getPlayer(challenger)  // challenger
-    const p2 = getPlayer(challenged)  // challenged player
+    const p1 = getPlayer(challenger)
+    const p2 = getPlayer(challenged)
     const winnerPlayer = getPlayer(winner)
     const loserPlayer = winner === challenger ? p2 : p1
 
-    // Winner gets the lower tag number, loser gets the higher
     const lowerTag = Math.min(p1.bag_tag, p2.bag_tag)
     const higherTag = Math.max(p1.bag_tag, p2.bag_tag)
 
-    const newWinnerTag = lowerTag
-    const newLoserTag = higherTag
-
-    // Insert participants
-    await supabase.from('challenge_participants').insert([
+    const { error: pErr } = await supabase.from('challenge_participants').insert([
       {
         challenge_id: challengeId,
         player_id: winnerPlayer.player_id,
         bag_tag_before: winnerPlayer.bag_tag,
-        bag_tag_after: newWinnerTag,
+        bag_tag_after: lowerTag,
         finish_position: 1,
       },
       {
         challenge_id: challengeId,
         player_id: loserPlayer.player_id,
         bag_tag_before: loserPlayer.bag_tag,
-        bag_tag_after: newLoserTag,
+        bag_tag_after: higherTag,
         finish_position: 2,
       },
     ])
+    if (pErr) { console.error('Participants insert error:', pErr); throw pErr }
 
-    // Update bag tags only if they changed
-    if (winnerPlayer.bag_tag !== newWinnerTag) {
-      await supabase.from('players').update({ bag_tag: newWinnerTag }).eq('player_id', winnerPlayer.player_id)
-    }
-    if (loserPlayer.bag_tag !== newLoserTag) {
-      await supabase.from('players').update({ bag_tag: newLoserTag }).eq('player_id', loserPlayer.player_id)
+    // Tags are swapping — use a temp placeholder to avoid unique constraint conflicts
+    const tagsAreSwapping = winnerPlayer.bag_tag !== lowerTag || loserPlayer.bag_tag !== higherTag
+    if (tagsAreSwapping) {
+      const TEMP_TAG = 999999
+
+      // Step 1: Move winner to temp tag to free up their current slot
+      const { error: e1 } = await supabase.from('players').update({ bag_tag: TEMP_TAG }).eq('player_id', winnerPlayer.player_id)
+      if (e1) { console.error('Temp tag error:', e1); throw e1 }
+
+      // Step 2: Move loser to the higher tag (winner's old slot is now free or loser keeps theirs)
+      const { error: e2 } = await supabase.from('players').update({ bag_tag: higherTag }).eq('player_id', loserPlayer.player_id)
+      if (e2) { console.error('Loser tag error:', e2); throw e2 }
+
+      // Step 3: Move winner from temp to the lower tag
+      const { error: e3 } = await supabase.from('players').update({ bag_tag: lowerTag }).eq('player_id', winnerPlayer.player_id)
+      if (e3) { console.error('Winner tag error:', e3); throw e3 }
     }
   }
 
   async function handleGroupChallenge(challengeId) {
     const validParticipants = groupParticipants.filter(p => p.player_id)
-    // Sort by finish position (1 = best/winner gets lowest tag)
     const sorted = [...validParticipants].sort((a, b) => a.finish_position - b.finish_position)
-
-    // Get current bag tags for all participants
     const participantPlayers = sorted.map(p => getPlayer(p.player_id)).filter(Boolean)
 
-    // Collect all their current tag numbers, sort ascending
     const availableTags = participantPlayers
       .map(p => p.bag_tag)
       .filter(t => t != null)
       .sort((a, b) => a - b)
 
-    // Assign tags: 1st place gets lowest tag, 2nd gets next, etc.
-    const participants = await supabase.from('challenge_participants').insert(
+    const { error: pErr } = await supabase.from('challenge_participants').insert(
       sorted.map((p, idx) => {
         const playerData = getPlayer(p.player_id)
         return {
@@ -165,13 +163,25 @@ export default function NewChallenge() {
         }
       })
     )
+    if (pErr) { console.error('Group participants insert error:', pErr); throw pErr }
 
-    // Update player bag tags
+    // Step 1: Move all participants to temp tags to clear all slots
+    const TEMP_BASE = 999000
     for (let i = 0; i < sorted.length; i++) {
-      const playerData = getPlayer(sorted[i].player_id)
+      const { error: tErr } = await supabase.from('players')
+        .update({ bag_tag: TEMP_BASE + i })
+        .eq('player_id', sorted[i].player_id)
+      if (tErr) { console.error('Group temp tag error:', tErr); throw tErr }
+    }
+
+    // Step 2: Assign final tags in order (all slots are now free)
+    for (let i = 0; i < sorted.length; i++) {
       const newTag = availableTags[i]
-      if (newTag != null && playerData.bag_tag !== newTag) {
-        await supabase.from('players').update({ bag_tag: newTag }).eq('player_id', playerData.player_id)
+      if (newTag != null) {
+        const { error: uErr } = await supabase.from('players')
+          .update({ bag_tag: newTag })
+          .eq('player_id', sorted[i].player_id)
+        if (uErr) { console.error('Group final tag error:', uErr); throw uErr }
       }
     }
   }
@@ -190,7 +200,6 @@ export default function NewChallenge() {
         <div className="loading"><div className="spinner" /> Loading...</div>
       ) : (
         <div className="challenge-layout">
-          {/* Config panel */}
           <div className="card config-panel">
             <h3 className="section-title">CHALLENGE DETAILS</h3>
 
@@ -210,13 +219,6 @@ export default function NewChallenge() {
                   🏆 Group
                 </button>
               </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Division</label>
-              <select className="form-select" value={division} onChange={e => setDivision(e.target.value)}>
-                {DIVISIONS.map(d => <option key={d}>{d}</option>)}
-              </select>
             </div>
 
             <div className="form-group">
@@ -242,11 +244,10 @@ export default function NewChallenge() {
             </div>
           </div>
 
-          {/* Challenge form */}
           <div className="card challenge-form-panel">
             {challengeType === 'Direct' ? (
               <DirectChallengeForm
-                players={divisionPlayers}
+                players={players}
                 challenger={challenger}
                 challenged={challenged}
                 winner={winner}
@@ -258,7 +259,7 @@ export default function NewChallenge() {
               />
             ) : (
               <GroupChallengeForm
-                players={divisionPlayers}
+                players={players}
                 participants={groupParticipants}
                 onAdd={addGroupParticipant}
                 onRemove={removeGroupParticipant}
@@ -295,11 +296,11 @@ function DirectChallengeForm({ players, challenger, challenged, winner, setChall
             <option value="">Select player...</option>
             {players.map(p => (
               <option key={p.player_id} value={p.player_id} disabled={p.player_id === challenged}>
-                #{p.bag_tag} — {p.player_name}
+                #{p.bag_tag} — {p.player_name} ({p.player_division})
               </option>
             ))}
           </select>
-          {challengerPlayer && <div className="current-tag">Current tag: <strong>#{challengerPlayer.bag_tag}</strong></div>}
+          {challengerPlayer && <div className="current-tag">Current tag: <strong>#{challengerPlayer.bag_tag}</strong> · {challengerPlayer.player_division}</div>}
         </div>
 
         <div className="vs-divider">VS</div>
@@ -310,11 +311,11 @@ function DirectChallengeForm({ players, challenger, challenged, winner, setChall
             <option value="">Select player...</option>
             {players.map(p => (
               <option key={p.player_id} value={p.player_id} disabled={p.player_id === challenger}>
-                #{p.bag_tag} — {p.player_name}
+                #{p.bag_tag} — {p.player_name} ({p.player_division})
               </option>
             ))}
           </select>
-          {challengedPlayer && <div className="current-tag">Current tag: <strong>#{challengedPlayer.bag_tag}</strong></div>}
+          {challengedPlayer && <div className="current-tag">Current tag: <strong>#{challengedPlayer.bag_tag}</strong> · {challengedPlayer.player_division}</div>}
         </div>
       </div>
 
@@ -327,14 +328,14 @@ function DirectChallengeForm({ players, challenger, challenged, winner, setChall
               onClick={() => setWinner(challenger)}
             >
               🏆 {challengerPlayer.player_name}
-              <span className="winner-tag">keeps/gets #{Math.min(challengerPlayer.bag_tag, challengedPlayer.bag_tag)}</span>
+              <span className="winner-tag">gets #{Math.min(challengerPlayer.bag_tag, challengedPlayer.bag_tag)}</span>
             </button>
             <button
               className={`winner-btn ${winner === challenged ? 'selected' : ''}`}
               onClick={() => setWinner(challenged)}
             >
               🏆 {challengedPlayer.player_name}
-              <span className="winner-tag">keeps/gets #{Math.min(challengerPlayer.bag_tag, challengedPlayer.bag_tag)}</span>
+              <span className="winner-tag">gets #{Math.min(challengerPlayer.bag_tag, challengedPlayer.bag_tag)}</span>
             </button>
           </div>
           {winner && (
@@ -363,7 +364,6 @@ function GroupChallengeForm({ players, participants, onAdd, onRemove, onUpdate, 
   const validParticipants = participants.filter(p => p.player_id)
   const usedIds = validParticipants.map(p => p.player_id)
 
-  // Collect available tags from selected players
   const availableTags = validParticipants
     .map(p => getPlayer(p.player_id)?.bag_tag)
     .filter(t => t != null)
@@ -373,7 +373,7 @@ function GroupChallengeForm({ players, participants, onAdd, onRemove, onUpdate, 
     <div className="group-form">
       <div className="group-header">
         <h3 className="section-title">GROUP RESULTS</h3>
-        <span className="group-hint">Drag to reorder — Position 1 is the winner</span>
+        <span className="group-hint">Position 1 is the winner</span>
       </div>
       <p className="group-desc">
         Enter players in finishing order. Tags available in this group: <strong>{availableTags.map(t => `#${t}`).join(', ') || '—'}</strong>
@@ -394,7 +394,7 @@ function GroupChallengeForm({ players, participants, onAdd, onRemove, onUpdate, 
                 <option value="">Select player...</option>
                 {players.map(pl => (
                   <option key={pl.player_id} value={pl.player_id} disabled={usedIds.includes(pl.player_id) && pl.player_id !== p.player_id}>
-                    #{pl.bag_tag} — {pl.player_name}
+                    #{pl.bag_tag} — {pl.player_name} ({pl.player_division})
                   </option>
                 ))}
               </select>
