@@ -7,7 +7,6 @@
 - **Challenges** — Record direct (1v1) and group challenges with automatic tag reassignment
 - **History** — Complete audit log of all bag tag changes
 
----
 
 ## Setup
 
