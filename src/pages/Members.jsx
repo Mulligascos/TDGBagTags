@@ -1,57 +1,167 @@
-.home-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 28px 32px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  margin-bottom: 28px;
-  background-image: radial-gradient(ellipse at 80% 50%, rgba(74,222,128,0.06) 0%, transparent 60%);
-}
-.hero-greeting { font-family: var(--font-display); font-size: 36px; letter-spacing: 2px; line-height: 1; margin-bottom: 4px; }
-.hero-sub { color: var(--text-muted); font-size: 14px; }
-.hero-tag { text-align: center; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-lg); padding: 16px 24px; }
-.hero-tag-num { font-family: var(--font-display); font-size: 42px; color: var(--accent); line-height: 1; }
-.hero-tag-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 3px; color: var(--text-dim); margin-top: 2px; }
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase.js'
+import { useAuth } from '../contexts/AuthContext.jsx'
+import { useToast, ToastContainer } from '../hooks/useToast.jsx'
+import './Members.css'
 
-.quick-links { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 28px; grid-column: 1 / -1; }
-.quick-link { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); transition: all var(--transition); text-decoration: none; }
-.quick-link:hover { border-color: var(--accent); background: var(--accent-dim); transform: translateY(-2px); }
-.ql-icon { font-size: 28px; }
-.ql-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
-.quick-link:hover .ql-label { color: var(--accent); }
+export default function Members() {
+  const { isAdmin, session } = useAuth()
+  const { toasts, addToast } = useToast()
+  const [members, setMembers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('All')
+  const [editMember, setEditMember] = useState(null)
+  const [saving, setSaving] = useState(false)
 
-.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  useEffect(() => { fetchMembers() }, [])
 
-.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.section-title { font-family: var(--font-display); font-size: 18px; letter-spacing: 2px; color: var(--text-muted); }
-.section-link { font-size: 13px; color: var(--accent); }
-.section-link:hover { text-decoration: underline; }
+  async function fetchMembers() {
+    const { data } = await supabase.from('member_profiles').select('*').order('full_name')
+    setMembers(data || [])
+    setLoading(false)
+  }
 
-.news-list { display: flex; flex-direction: column; gap: 12px; }
-.news-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; transition: border-color var(--transition); }
-.news-card:hover { border-color: var(--border2); }
-.news-img { width: 100%; height: 140px; object-fit: cover; }
-.news-body { padding: 16px; }
-.news-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.news-date { font-size: 12px; color: var(--text-dim); font-family: var(--font-mono); }
-.news-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; line-height: 1.3; }
-.news-excerpt { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 10px; }
-.news-author { font-size: 12px; color: var(--text-dim); }
+  async function handleStatusChange(member, status) {
+    const { error } = await supabase.from('member_profiles').update({ membership_status: status }).eq('id', member.id)
+    if (error) addToast(error.message, 'error')
+    else { addToast(`${member.full_name} set to ${status}`, 'success'); fetchMembers() }
+  }
 
-.events-list { display: flex; flex-direction: column; gap: 10px; }
-.event-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); transition: border-color var(--transition); }
-.event-row:hover { border-color: var(--border2); }
-.event-date-block { text-align: center; background: var(--accent-dim); border-radius: var(--radius); padding: 8px 12px; min-width: 50px; flex-shrink: 0; }
-.event-day { font-family: var(--font-display); font-size: 24px; color: var(--accent); line-height: 1; }
-.event-month { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); opacity: .7; }
-.event-info { flex: 1; }
-.event-name { font-weight: 600; font-size: 14px; margin-bottom: 3px; }
-.event-detail { display: flex; gap: 12px; font-size: 12px; color: var(--text-muted); }
+  async function handleRoleChange(member, role) {
+    const { error } = await supabase.from('member_profiles').update({ role }).eq('id', member.id)
+    if (error) addToast(error.message, 'error')
+    else { addToast(`${member.full_name} is now ${role}`, 'success'); fetchMembers() }
+  }
 
-@media (max-width: 768px) {
-  .home-grid { grid-template-columns: 1fr; }
-  .quick-links { grid-template-columns: repeat(2, 1fr); }
-  .home-hero { flex-direction: column; gap: 16px; text-align: center; }
+  async function handleSaveEdit() {
+    setSaving(true)
+    const { error } = await supabase.from('member_profiles').update({
+      full_name: editMember.full_name,
+      phone: editMember.phone,
+      division: editMember.division,
+      membership_status: editMember.membership_status,
+      bag_tag: editMember.bag_tag || null,
+    }).eq('id', editMember.id)
+    setSaving(false)
+    if (error) addToast(error.message, 'error')
+    else { addToast('Member updated!', 'success'); setEditMember(null); fetchMembers() }
+  }
+
+  const filtered = members
+    .filter(m => filter === 'All' || m.membership_status === filter || m.division === filter)
+    .filter(m => !search || m.full_name?.toLowerCase().includes(search.toLowerCase()) || m.email?.toLowerCase().includes(search.toLowerCase()))
+
+  const initials = (name) => name ? name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?'
+
+  return (
+    <div className="members-page">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 className="page-title">MEMBERS</h1>
+          <p className="page-subtitle">{members.filter(m => m.membership_status === 'Active').length} active · {members.length} total</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <input className="form-input" style={{ maxWidth: 260 }} placeholder="Search members..." value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+      <div className="filter-bar">
+        {['All', 'Active', 'Inactive', 'Mixed', 'Female', 'Junior', 'Senior'].map(f => (
+          <button key={f} className={`filter-chip ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>{f}</button>
+        ))}
+      </div>
+
+      {loading ? <div className="loading"><div className="spinner" /></div> : (
+        <div className="members-grid">
+          {filtered.map((m, i) => (
+            <div key={m.id} className="member-card fade-up" style={{ animationDelay: `${i * 30}ms` }}>
+              <div className="member-card-top">
+                {m.photo_url
+                  ? <img src={m.photo_url} className="avatar avatar-md" alt="" />
+                  : <div className="avatar avatar-md">{initials(m.full_name)}</div>
+                }
+                <div className="member-info">
+                  <div className="member-name">{m.full_name || 'No name set'}</div>
+                  <div className="member-email">{m.email}</div>
+                  <div className="member-badges">
+                    {m.division && <span className={`badge badge-${m.division === 'Female' ? 'orange' : m.division === 'Junior' ? 'green' : m.division === 'Senior' ? 'yellow' : 'blue'}`}>{m.division}</span>}
+                    <span className={`badge ${m.membership_status === 'Active' ? 'badge-green' : 'badge-muted'}`}>{m.membership_status || 'Active'}</span>
+                    {m.role === 'admin' && <span className="badge badge-yellow">★ Admin</span>}
+                  </div>
+                </div>
+                {m.bag_tag && <div className="member-tag">#{m.bag_tag}</div>}
+              </div>
+
+              {m.bio && <p className="member-bio">{m.bio}</p>}
+
+              <div className="member-details">
+                {m.phone && <span className="member-detail">📞 {m.phone}</span>}
+                {m.pdga_number && <span className="member-detail">PDGA #{m.pdga_number}</span>}
+              </div>
+
+              {isAdmin && m.id !== session.user.id && (
+                <div className="member-admin-actions">
+                  <button className="btn btn-secondary btn-sm" onClick={() => setEditMember({ ...m })}>Edit</button>
+                  <button
+                    className={`btn btn-sm ${m.membership_status === 'Active' ? 'btn-danger' : 'btn-primary'}`}
+                    onClick={() => handleStatusChange(m, m.membership_status === 'Active' ? 'Inactive' : 'Active')}
+                  >
+                    {m.membership_status === 'Active' ? 'Deactivate' : 'Activate'}
+                  </button>
+                  {m.role !== 'admin'
+                    ? <button className="btn btn-secondary btn-sm" onClick={() => handleRoleChange(m, 'admin')}>Make Admin</button>
+                    : <button className="btn btn-danger btn-sm" onClick={() => handleRoleChange(m, 'member')}>Remove Admin</button>
+                  }
+                </div>
+              )}
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="empty-state" style={{ gridColumn: '1/-1' }}>
+              <div className="empty-icon">👥</div><div className="empty-title">NO MEMBERS FOUND</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {editMember && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditMember(null)}>
+          <div className="modal">
+            <h2 className="modal-title">EDIT MEMBER</h2>
+            <div className="modal-fields">
+              <div className="form-group"><label className="form-label">Full Name</label>
+                <input className="form-input" value={editMember.full_name || ''} onChange={e => setEditMember(m => ({ ...m, full_name: e.target.value }))} />
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label className="form-label">Phone</label>
+                  <input className="form-input" value={editMember.phone || ''} onChange={e => setEditMember(m => ({ ...m, phone: e.target.value }))} />
+                </div>
+                <div className="form-group"><label className="form-label">Bag Tag #</label>
+                  <input className="form-input" type="number" value={editMember.bag_tag || ''} onChange={e => setEditMember(m => ({ ...m, bag_tag: e.target.value }))} />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label className="form-label">Division</label>
+                  <select className="form-select" value={editMember.division || 'Mixed'} onChange={e => setEditMember(m => ({ ...m, division: e.target.value }))}>
+                    {['Mixed', 'Female', 'Junior', 'Senior'].map(d => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label className="form-label">Status</label>
+                  <select className="form-select" value={editMember.membership_status || 'Active'} onChange={e => setEditMember(m => ({ ...m, membership_status: e.target.value }))}>
+                    <option>Active</option><option>Inactive</option><option>Pending</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setEditMember(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveEdit} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <ToastContainer toasts={toasts} />
+    </div>
+  )
 }

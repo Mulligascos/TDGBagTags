@@ -1,46 +1,148 @@
-.tab-bar { display: flex; gap: 6px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
-.tab-btn { padding: 10px 18px; font-size: 14px; font-weight: 500; cursor: pointer; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); transition: all var(--transition); margin-bottom: -1px; }
-.tab-btn:hover { color: var(--text); }
-.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { supabase } from '../lib/supabase.js'
+import { useAuth } from '../contexts/AuthContext.jsx'
+import { format } from 'date-fns'
+import './Home.css'
 
-.lb-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.refresh-area { display: flex; align-items: center; gap: 10px; }
-.last-updated { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
-.div-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
-.div-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-.div-title { font-family: var(--font-display); font-size: 20px; letter-spacing: 2px; }
-.div-count { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
-.tag-badge { font-family: var(--font-mono); font-weight: 700; font-size: 14px; }
-.tag-gold { color: #ffd700; }
-.tag-silver { color: #c0c0c0; }
-.tag-bronze { color: #cd7f32; }
-.row-me td { background: rgba(74,222,128,.04); }
+export default function Home() {
+  const { profile } = useAuth()
+  const [news, setNews] = useState([])
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
 
-.challenge-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
-.section-label { font-family: var(--font-display); font-size: 16px; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 16px; }
-.type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.type-btn { padding: 10px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); transition: all var(--transition); }
-.type-btn:hover { color: var(--text); }
-.type-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  useEffect(() => {
+    Promise.all([fetchNews(), fetchEvents()]).then(() => setLoading(false))
+  }, [])
 
-.vs-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: end; }
-.vs-label { font-family: var(--font-display); font-size: 24px; color: var(--accent3); padding-bottom: 10px; }
-.hint-text { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  async function fetchNews() {
+    const { data } = await supabase.from('news_posts')
+      .select('*, member_profiles(full_name)')
+      .eq('published', true)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    setNews(data || [])
+  }
 
-.winner-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-.winner-btn { padding: 14px; border-radius: var(--radius); background: var(--surface2); border: 1.5px solid var(--border); color: var(--text); cursor: pointer; font-size: 14px; font-weight: 500; transition: all var(--transition); }
-.winner-btn:hover { border-color: var(--accent); }
-.winner-btn.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  async function fetchEvents() {
+    const { data } = await supabase.from('events')
+      .select('*')
+      .gte('event_date', new Date().toISOString())
+      .order('event_date', { ascending: true })
+      .limit(4)
+    setEvents(data || [])
+  }
 
-.result-preview { margin-top: 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
-.result-row { display: flex; justify-content: space-between; font-size: 14px; }
-.tag-win { color: var(--accent); }
-.tag-lose { color: var(--danger); }
+  const firstName = profile?.full_name?.split(' ')[0] || 'Member'
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-.pos-pill { width: 26px; height: 26px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-family: var(--font-mono); color: var(--text-muted); flex-shrink: 0; }
+  return (
+    <div className="home">
+      <div className="home-hero">
+        <div className="hero-text">
+          <h1 className="hero-greeting">{greeting}, {firstName}</h1>
+          <p className="hero-sub">Welcome to the club member portal</p>
+        </div>
+        {profile?.bag_tag && (
+          <div className="hero-tag">
+            <div className="hero-tag-num">#{profile.bag_tag}</div>
+            <div className="hero-tag-label">YOUR TAG</div>
+          </div>
+        )}
+      </div>
 
-@media (max-width: 768px) {
-  .challenge-layout { grid-template-columns: 1fr; }
-  .vs-row { grid-template-columns: 1fr; }
-  .vs-label { text-align: center; padding: 4px 0; }
+      <div className="home-grid">
+        {/* Quick links */}
+        <div className="quick-links">
+          <Link to="/bagtag" className="quick-link">
+            <span className="ql-icon">🥏</span>
+            <span className="ql-label">Bag Tags</span>
+          </Link>
+          <Link to="/scores" className="quick-link">
+            <span className="ql-icon">🏌️</span>
+            <span className="ql-label">Scores</span>
+          </Link>
+          <Link to="/events" className="quick-link">
+            <span className="ql-icon">📅</span>
+            <span className="ql-label">Events</span>
+          </Link>
+          <Link to="/members" className="quick-link">
+            <span className="ql-icon">👥</span>
+            <span className="ql-label">Members</span>
+          </Link>
+        </div>
+
+        {/* News feed */}
+        <div className="home-section">
+          <div className="section-header">
+            <h2 className="section-title">LATEST NEWS</h2>
+            <Link to="/news" className="section-link">View all →</Link>
+          </div>
+          {loading ? <div className="loading"><div className="spinner" /></div> :
+           news.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📰</div>
+              <div className="empty-title">NO NEWS YET</div>
+            </div>
+          ) : (
+            <div className="news-list">
+              {news.map((post, i) => (
+                <div key={post.id} className="news-card fade-up" style={{ animationDelay: `${i * 50}ms` }}>
+                  {post.cover_image && <img src={post.cover_image} className="news-img" alt="" />}
+                  <div className="news-body">
+                    <div className="news-meta">
+                      <span className={`badge badge-${post.category === 'Tournament' ? 'yellow' : post.category === 'Announcement' ? 'blue' : 'green'}`}>
+                        {post.category || 'News'}
+                      </span>
+                      <span className="news-date">{format(new Date(post.created_at), 'dd MMM yyyy')}</span>
+                    </div>
+                    <h3 className="news-title">{post.title}</h3>
+                    <p className="news-excerpt">{post.excerpt || post.body?.slice(0, 120)}...</p>
+                    <span className="news-author">By {post.member_profiles?.full_name || 'Admin'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Upcoming events */}
+        <div className="home-section">
+          <div className="section-header">
+            <h2 className="section-title">UPCOMING EVENTS</h2>
+            <Link to="/events" className="section-link">View all →</Link>
+          </div>
+          {loading ? <div className="loading"><div className="spinner" /></div> :
+           events.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📅</div>
+              <div className="empty-title">NO UPCOMING EVENTS</div>
+            </div>
+          ) : (
+            <div className="events-list">
+              {events.map((ev, i) => (
+                <div key={ev.id} className="event-row fade-up" style={{ animationDelay: `${i * 50}ms` }}>
+                  <div className="event-date-block">
+                    <div className="event-day">{format(new Date(ev.event_date), 'dd')}</div>
+                    <div className="event-month">{format(new Date(ev.event_date), 'MMM')}</div>
+                  </div>
+                  <div className="event-info">
+                    <div className="event-name">{ev.title}</div>
+                    <div className="event-detail">
+                      {ev.location && <span>📍 {ev.location}</span>}
+                      <span>🕐 {format(new Date(ev.event_date), 'h:mm a')}</span>
+                    </div>
+                  </div>
+                  <span className={`badge badge-${ev.event_type === 'Tournament' ? 'yellow' : ev.event_type === 'Social' ? 'green' : 'blue'}`}>
+                    {ev.event_type || 'Event'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }

@@ -1,81 +1,26 @@
-import { useState } from 'react'
-import { useAuth } from '../contexts/AuthContext.jsx'
-import './Login.css'
+.profile-layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start; }
 
-export default function Login() {
-  const { signInWithEmail } = useAuth()
-  const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState('')
+.profile-card { display: flex; flex-direction: column; align-items: center; gap: 0; text-align: center; position: sticky; top: 80px; }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!email.trim()) return
-    setLoading(true)
-    setError('')
-    const { error } = await signInWithEmail(email.trim().toLowerCase())
-    setLoading(false)
-    if (error) setError(error.message)
-    else setSent(true)
-  }
+.photo-wrap { position: relative; margin-bottom: 16px; }
+.profile-photo { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 3px solid var(--border2); }
+.profile-initials { width: 110px; height: 110px; border-radius: 50%; background: var(--surface3); border: 3px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: var(--text-muted); }
+.photo-edit-btn { position: absolute; bottom: 0; right: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--surface2); border: 2px solid var(--border2); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
+.photo-edit-btn:hover { background: var(--accent-dim); border-color: var(--accent); }
 
-  return (
-    <div className="login-page">
-      <div className="login-bg">
-        <div className="login-orb orb1" />
-        <div className="login-orb orb2" />
-      </div>
+.profile-summary { width: 100%; padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.profile-name { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+.profile-email { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+.profile-badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 
-      <div className="login-card fade-up">
-        <div className="login-logo">
-          <span className="login-disc">🥏</span>
-          <div className="login-club">DISC GOLF</div>
-          <div className="login-portal">MEMBER PORTAL</div>
-        </div>
+.profile-stats { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.stat-row { display: flex; justify-content: space-between; font-size: 13px; }
+.stat-label { color: var(--text-muted); }
+.stat-val { font-weight: 600; font-family: var(--font-mono); }
 
-        {sent ? (
-          <div className="login-sent">
-            <div className="sent-icon">📬</div>
-            <h2 className="sent-title">Check your email</h2>
-            <p className="sent-body">
-              We've sent a magic link to <strong>{email}</strong>.<br />
-              Click the link to sign in — no password needed.
-            </p>
-            <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => setSent(false)}>
-              Use a different email
-            </button>
-          </div>
-        ) : (
-          <>
-            <h1 className="login-title">Welcome back</h1>
-            <p className="login-subtitle">Enter your email and we'll send you a sign-in link.</p>
+.card-section-title { font-family: var(--font-display); font-size: 16px; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 20px; }
 
-            <form onSubmit={handleSubmit} className="login-form">
-              <div className="form-group">
-                <label className="form-label">Email address</label>
-                <input
-                  className="form-input"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  autoFocus
-                  required
-                />
-              </div>
-              {error && <div className="login-error">{error}</div>}
-              <button className="btn btn-primary login-btn" type="submit" disabled={loading}>
-                {loading ? <><div className="spinner" style={{width:14,height:14}} /> Sending...</> : '✉️ Send magic link'}
-              </button>
-            </form>
-
-            <p className="login-note">
-              Not a member yet? Contact your club admin to get access.
-            </p>
-          </>
-        )}
-      </div>
-    </div>
-  )
+@media (max-width: 768px) {
+  .profile-layout { grid-template-columns: 1fr; }
+  .profile-card { position: static; }
 }
