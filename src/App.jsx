@@ -1,40 +1,94 @@
-.app { display: flex; flex-direction: column; min-height: 100vh; }
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
+import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
+import Login from './pages/Login.jsx'
+import Home from './pages/Home.jsx'
+import Profile from './pages/Profile.jsx'
+import Members from './pages/Members.jsx'
+import News from './pages/News.jsx'
+import Events from './pages/Events.jsx'
+import Scores from './pages/Scores.jsx'
+import BagTag from './pages/BagTag.jsx'
+import './App.css'
 
-/* ── Header ── */
-.header { position: sticky; top: 0; z-index: 100; background: rgba(8,12,10,.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }
-.header-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 24px; }
+function AppShell() {
+  const { session, profile, loading, isAdmin, signOut } = useAuth()
+  const location = useLocation()
 
-.logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; text-decoration: none; }
-.logo-icon { font-size: 26px; line-height: 1; }
-.logo-title { font-family: var(--font-display); font-size: 20px; letter-spacing: 3px; color: var(--accent); line-height: 1; }
-.logo-sub { font-family: var(--font-mono); font-size: 8px; letter-spacing: 3px; color: var(--text-dim); line-height: 1; }
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12, color: 'var(--text-muted)' }}>
+      <div className="spinner" /> Loading...
+    </div>
+  )
 
-.nav { display: flex; align-items: center; gap: 2px; flex: 1; }
-.nav-link { padding: 6px 12px; border-radius: var(--radius); font-size: 14px; font-weight: 500; color: var(--text-muted); transition: all var(--transition); }
-.nav-link:hover { color: var(--text); background: var(--surface); }
-.nav-link.active { color: var(--accent); background: var(--accent-dim); }
+  if (!session) return <Login />
 
-.header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.profile-btn { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); cursor: pointer; transition: all var(--transition); text-decoration: none; color: var(--text); }
-.profile-btn:hover { border-color: var(--accent); }
-.profile-name { font-size: 13px; font-weight: 500; }
-.admin-pip { color: var(--accent2); font-size: 12px; }
-.signout-btn { color: var(--text-muted); }
+  const initials = profile?.full_name
+    ? profile.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : '?'
 
-/* ── Main ── */
-.main { flex: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 32px 24px; }
+  return (
+    <div className="app">
+      <header className="header">
+        <div className="header-inner">
+          <NavLink to="/" className="logo">
+            <span className="logo-icon">🥏</span>
+            <div>
+              <div className="logo-title">{profile?.club_name || 'DISC GOLF'}</div>
+              <div className="logo-sub">MEMBER PORTAL</div>
+            </div>
+          </NavLink>
 
-/* ── Footer ── */
-.footer { border-top: 1px solid var(--border); padding: 14px 24px; text-align: center; font-size: 12px; color: var(--text-dim); letter-spacing: .5px; }
-.footer-sep { margin: 0 10px; }
+          <nav className="nav">
+            <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Home</NavLink>
+            <NavLink to="/news" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>News</NavLink>
+            <NavLink to="/events" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Events</NavLink>
+            <NavLink to="/scores" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Scores</NavLink>
+            <NavLink to="/bagtag" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Bag Tags</NavLink>
+            <NavLink to="/members" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Members</NavLink>
+          </nav>
 
-/* ── Mobile ── */
-@media (max-width: 900px) {
-  .nav { display: none; }
-  .signout-btn { display: none; }
-  .profile-name { display: none; }
+          <div className="header-right">
+            <NavLink to="/profile" className="profile-btn">
+              {profile?.photo_url
+                ? <img src={profile.photo_url} className="avatar avatar-sm" alt="" />
+                : <div className="avatar avatar-sm">{initials}</div>
+              }
+              <span className="profile-name">{profile?.full_name?.split(' ')[0] || 'Profile'}</span>
+              {isAdmin && <span className="admin-pip" title="Admin">★</span>}
+            </NavLink>
+            <button className="btn btn-secondary btn-sm signout-btn" onClick={signOut}>Sign out</button>
+          </div>
+        </div>
+      </header>
+
+      <main className="main">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/members" element={<Members />} />
+          <Route path="/news" element={<News />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/scores" element={<Scores />} />
+          <Route path="/bagtag" element={<BagTag />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </main>
+
+      <footer className="footer">
+        <span>{profile?.club_name || 'Disc Golf Club'}</span>
+        <span className="footer-sep">·</span>
+        <span>Member Portal</span>
+      </footer>
+    </div>
+  )
 }
-@media (max-width: 600px) {
-  .main { padding: 20px 16px; }
-  .logo-title { font-size: 16px; }
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppShell />
+      </BrowserRouter>
+    </AuthProvider>
+  )
 }
